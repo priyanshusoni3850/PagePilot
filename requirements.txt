@@ -10,3 +10,4 @@ requests
 huggingface-hub
 faiss-cpu
 unstructured
+PyGithub
