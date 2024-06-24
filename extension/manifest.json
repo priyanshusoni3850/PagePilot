@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "name": "Chatbot Extension",
+    "version": "1.0",
+    "description": "A chatbot extension with a Bing-like UI and conversation system.",
+    "permissions": [
+      "activeTab",
+      "storage",
+      "tabs"
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"]
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["images/*"],
+        "matches": ["<all_urls>"]
+      }
+    ]
+  }
+  

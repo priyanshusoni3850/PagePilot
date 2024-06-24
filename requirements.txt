@@ -1,0 +1,12 @@
+Flask
+flask-cors  # Will install the latest version available
+langchain-google-genai
+langchain-community
+langchain
+gunicorn
+python-dotenv
+selenium
+requests
+huggingface-hub
+faiss-cpu
+unstructured
