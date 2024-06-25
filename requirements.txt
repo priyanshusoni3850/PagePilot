@@ -5,7 +5,6 @@ langchain-community
 langchain
 gunicorn
 python-dotenv
-selenium
 requests
 huggingface-hub
 faiss-cpu
