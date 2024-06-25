@@ -47,9 +47,11 @@ def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
 
         hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=api_key)
         vectorStore_hf = FAISS.from_documents(docs, hf_embeddings)
-
+        print("vectorStore_hf is")
+        print(vectorStore_hf)
         with open(store_path, "wb") as f:
             pickle.dump(vectorStore_hf, f)
+            print("dumping done")
 
         logging.info(f"FAISS vector store setup successful with {len(docs)} documents.")
     except Exception as e:
@@ -61,6 +63,8 @@ def load_faiss_store(store_path=STORE_PATH):
     try:
         if os.path.exists(store_path):
             with open(store_path, "rb") as f:
+                print("loading pickle")
+                print(f)
                 return pickle.load(f)
         else:
             return None
@@ -94,21 +98,25 @@ def generate_response():
 
         user_query = data["query"]
         user_url = data["url"]
-
+        print(user_query)
+        print(user_url)
         # Setup FAISS vector store with new URL passed by user
         setup_faiss_store([user_url], API_KEY, STORE_PATH)
 
         # Load FAISS vector store
+        print("loading vectore again")
         vectorStore_hf = load_faiss_store(STORE_PATH)
-
+        print(vectorStore_hf)
         if vectorStore_hf:
             hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=API_KEY)
             relevant_docs = get_relevant_docs(user_query, vectorStore_hf, hf_embeddings)
-
+            print("RELEVANT DOCS")
+            print(relevant_docs)
             if relevant_docs:
                 relevant_texts = [doc.page_content for doc in relevant_docs]  # Assuming 'page_content' attribute
                 combined_text = "\n".join(relevant_texts)
-
+                print("combined_text")
+                print(combined_text)
                 # Invoke LLM with combined context and user query
                 try:
                     response = llm.invoke(combined_text + " " + user_query)
