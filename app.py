@@ -90,7 +90,9 @@ def home():
 # Endpoint to handle POST requests
 @app.route("/generate_response", methods=["POST"])
 def generate_response():
+    print("check 1")
     try:
+        print("check 2")
         data = request.get_json()
 
         if "query" not in data or "url" not in data:
