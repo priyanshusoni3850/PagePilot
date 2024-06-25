@@ -36,7 +36,10 @@ def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
         is_separator_regex=False,
     )
     docs = text_splitter.split_documents(data)
-    print(docs)
+
+    if not docs:
+        raise ValueError("No documents found or empty data after splitting.")
+
     hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=api_key)
     vectorStore_hf = FAISS.from_documents(docs, hf_embeddings)
 
@@ -73,31 +76,36 @@ def generate_response():
     user_query = data["query"]
     user_url = data["url"]
 
-    # Setup FAISS vector store with new URL passed by user
-    setup_faiss_store([user_url], API_KEY, STORE_PATH)
+    try:
+        # Setup FAISS vector store with new URL passed by user
+        setup_faiss_store([user_url], API_KEY, STORE_PATH)
 
-    # Load FAISS vector store
-    vectorStore_hf = load_faiss_store(STORE_PATH)
+        # Load FAISS vector store
+        vectorStore_hf = load_faiss_store(STORE_PATH)
 
-    # Process relevant documents with LLM if vector store exists
-    if vectorStore_hf:
-        hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=API_KEY)
-        relevant_docs = get_relevant_docs(user_query, vectorStore_hf, hf_embeddings)
+        # Process relevant documents with LLM if vector store exists
+        if vectorStore_hf:
+            hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=API_KEY)
+            relevant_docs = get_relevant_docs(user_query, vectorStore_hf, hf_embeddings)
 
-        if relevant_docs:
-            relevant_texts = [doc.page_content for doc in relevant_docs]  # Assuming 'page_content' attribute
-            combined_text = "\n".join(relevant_texts)
+            if relevant_docs:
+                relevant_texts = [doc.page_content for doc in relevant_docs]  # Assuming 'page_content' attribute
+                combined_text = "\n".join(relevant_texts)
 
-            # Invoke LLM with combined context and user query
-            try:
-                response = llm.invoke(combined_text + " " + user_query)
-                return jsonify({"response": response}), 200
-            except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                # Invoke LLM with combined context and user query
+                try:
+                    response = llm.invoke(combined_text + " " + user_query)
+                    return jsonify({"response": response}), 200
+                except Exception as e:
+                    return jsonify({"error": str(e)}), 500
+            else:
+                return jsonify({"message": "No relevant documents found."}), 404
         else:
-            return jsonify({"message": "No relevant documents found."}), 404
-    else:
-        return jsonify({"error": f"Vector store '{STORE_PATH}' not found."}), 500
+            return jsonify({"error": f"Vector store '{STORE_PATH}' not found."}), 500
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 500
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
