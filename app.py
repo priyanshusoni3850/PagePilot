@@ -1,54 +1,30 @@
-import pickle
-import os
 from flask import Flask, request, jsonify
-from langchain.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAI
+from langchain.document_loaders import UnstructuredURLLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import HuggingFaceInferenceAPIEmbeddings
-from langchain.document_loaders import UnstructuredURLLoader
-from github import Github
+from langchain.vectorstores import FAISS
+import pickle
+import os
+from flask_cors import CORS
 from dotenv import load_dotenv
-import base64
 
 app = Flask(__name__)
+CORS(app)
+
 load_dotenv()
 
-# GitHub setup
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
-GITHUB_REPO = os.getenv('GITHUB_REPO')
-FAISS_INDEX_FILE = 'faiss_store_hf.pkl'
+# Define constants
+STORE_PATH = "faiss_store_hf.pkl"
+API_KEY = os.getenv('hf_api_key')
 
-# Initialize GitHub client
-g = Github(GITHUB_TOKEN)
-repo = g.get_repo(GITHUB_REPO)
-
-# Function to upload the FAISS index to GitHub
-def upload_to_github(filename):
-    try:
-        # Try to get the file to check if it exists
-        file = repo.get_contents(filename)
-        sha = file.sha
-        # Update the existing file
-        with open(filename, "rb") as f:
-            content = f.read()
-        content_b64 = base64.b64encode(content).decode('utf-8')
-        repo.update_file(filename, "Update FAISS index", content_b64, sha)
-    except:
-        # If the file does not exist, create it
-        with open(filename, "rb") as f:
-            content = f.read()
-        content_b64 = base64.b64encode(content).decode('utf-8')
-        repo.create_file(filename, "Add FAISS index", content_b64)
-
-# Function to download the FAISS index from GitHub
-def download_from_github(filename):
-    file = repo.get_contents(filename)
-    content_b64 = file.content
-    content = base64.b64decode(content_b64)
-    with open(filename, "wb") as f:
-        f.write(content)
+# Initialize GoogleGenerativeAI with your model and API key
+LLM_MODEL = "models/text-bison-001"
+GOOGLE_API_KEY = os.getenv('g_api_key')
+llm = GoogleGenerativeAI(model=LLM_MODEL, google_api_key=GOOGLE_API_KEY)
 
 # Function to setup and save the FAISS vector store
-def setup_faiss_store(urls, api_key, filename):
+def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
     loader = UnstructuredURLLoader(urls=urls)
     data = loader.load()
 
@@ -60,19 +36,20 @@ def setup_faiss_store(urls, api_key, filename):
         is_separator_regex=False,
     )
     docs = text_splitter.split_documents(data)
+    print(docs)
     hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=api_key)
     vectorStore_hf = FAISS.from_documents(docs, hf_embeddings)
 
-    with open(filename, "wb") as f:
+    with open(store_path, "wb") as f:
         pickle.dump(vectorStore_hf, f)
 
-    upload_to_github(filename)
-
 # Function to load the FAISS vector store
-def load_faiss_store(filename):
-    download_from_github(filename)
-    with open(filename, "rb") as f:
-        return pickle.load(f)
+def load_faiss_store(store_path=STORE_PATH):
+    if os.path.exists(store_path):
+        with open(store_path, "rb") as f:
+            return pickle.load(f)
+    else:
+        return None
 
 # Function to embed the user query and retrieve relevant documents
 def get_relevant_docs(query, vector_store, embeddings):
@@ -97,29 +74,30 @@ def generate_response():
     user_url = data["url"]
 
     # Setup FAISS vector store with new URL passed by user
-    setup_faiss_store([user_url], os.getenv('hf_api_key'), FAISS_INDEX_FILE)
+    setup_faiss_store([user_url], API_KEY, STORE_PATH)
 
     # Load FAISS vector store
-    vectorStore_hf = load_faiss_store(FAISS_INDEX_FILE)
+    vectorStore_hf = load_faiss_store(STORE_PATH)
 
     # Process relevant documents with LLM if vector store exists
     if vectorStore_hf:
-        hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=os.getenv('hf_api_key'))
+        hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=API_KEY)
         relevant_docs = get_relevant_docs(user_query, vectorStore_hf, hf_embeddings)
 
         if relevant_docs:
             relevant_texts = [doc.page_content for doc in relevant_docs]  # Assuming 'page_content' attribute
             combined_text = "\n".join(relevant_texts)
 
-            # Initialize GoogleGenerativeAI with your model and API key
-            llm = GoogleGenerativeAI(model="models/text-bison-001", google_api_key=os.getenv('g_api_key'))
-            response = llm.invoke(combined_text + " " + user_query)
-
-            return jsonify({"response": response}), 200
+            # Invoke LLM with combined context and user query
+            try:
+                response = llm.invoke(combined_text + " " + user_query)
+                return jsonify({"response": response}), 200
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
         else:
             return jsonify({"message": "No relevant documents found."}), 404
     else:
-        return jsonify({"error": "Failed to load FAISS vector store from GitHub"}), 500
+        return jsonify({"error": f"Vector store '{STORE_PATH}' not found."}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
