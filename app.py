@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO)  # Set log level as needed
 
 # Define constants
 STORE_PATH = "faiss_store_hf.pkl"
+NAME_STORE_PATH = "names.pkl"
 API_KEY = os.getenv('hf_api_key')
 
 # Initialize GoogleGenerativeAI with your model and API key
@@ -47,11 +48,9 @@ def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
 
         hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=api_key)
         vectorStore_hf = FAISS.from_documents(docs, hf_embeddings)
-        print("vectorStore_hf is")
-        print(vectorStore_hf)
+        
         with open(store_path, "wb") as f:
             pickle.dump(vectorStore_hf, f)
-            print("dumping done")
 
         logging.info(f"FAISS vector store setup successful with {len(docs)} documents.")
     except Exception as e:
@@ -63,8 +62,6 @@ def load_faiss_store(store_path=STORE_PATH):
     try:
         if os.path.exists(store_path):
             with open(store_path, "rb") as f:
-                print("loading pickle")
-                print(f)
                 return pickle.load(f)
         else:
             return None
@@ -87,12 +84,10 @@ def get_relevant_docs(query, vector_store, embeddings):
 def home():
     return "Page is working"
 
-# Endpoint to handle POST requests
+# Endpoint to handle POST requests for generating responses
 @app.route("/generate_response", methods=["POST"])
 def generate_response():
-    print("check 1")
     try:
-        print("check 2")
         data = request.get_json()
 
         if "query" not in data or "url" not in data:
@@ -100,25 +95,20 @@ def generate_response():
 
         user_query = data["query"]
         user_url = data["url"]
-        print(user_query)
-        print(user_url)
+
         # Setup FAISS vector store with new URL passed by user
         setup_faiss_store([user_url], API_KEY, STORE_PATH)
 
         # Load FAISS vector store
-        print("loading vectore again")
         vectorStore_hf = load_faiss_store(STORE_PATH)
-        print(vectorStore_hf)
         if vectorStore_hf:
             hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=API_KEY)
             relevant_docs = get_relevant_docs(user_query, vectorStore_hf, hf_embeddings)
-            print("RELEVANT DOCS")
-            print(relevant_docs)
+
             if relevant_docs:
                 relevant_texts = [doc.page_content for doc in relevant_docs]  # Assuming 'page_content' attribute
                 combined_text = "\n".join(relevant_texts)
-                print("combined_text")
-                print(combined_text)
+
                 # Invoke LLM with combined context and user query
                 try:
                     response = llm.invoke(combined_text + " " + user_query)
@@ -136,6 +126,32 @@ def generate_response():
     except Exception as ex:
         logging.error(f"Unexpected error in generate_response: {str(ex)}")
         return jsonify({"error": "An unexpected error occurred. Please try again later."}), 500
+
+# Endpoint to handle POST requests for saving a name
+@app.route("/save_name", methods=["POST"])
+def save_name():
+    try:
+        data = request.get_json()
+
+        if "name" not in data:
+            return jsonify({"error": "Missing 'name' in request"}), 400
+
+        name = data["name"]
+
+        names = []
+        if os.path.exists(NAME_STORE_PATH):
+            with open(NAME_STORE_PATH, "rb") as f:
+                names = pickle.load(f)
+
+        names.append(name)
+
+        with open(NAME_STORE_PATH, "wb") as f:
+            pickle.dump(names, f)
+
+        return jsonify({"message": f"Name '{name}' saved successfully."}), 200
+    except Exception as e:
+        logging.error(f"Error saving name: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
