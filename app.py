@@ -3,7 +3,7 @@ from langchain_google_genai import GoogleGenerativeAI
 from langchain.document_loaders import UnstructuredURLLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import HuggingFaceInferenceAPIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 import pickle
 import os
 import logging
@@ -33,6 +33,11 @@ def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
     try:
         loader = UnstructuredURLLoader(urls=urls)
         data = loader.load()
+        
+        if not data:
+            raise ValueError("No data loaded from the URL.")
+        
+        logging.info(f"Loaded data from URL: {data}")
 
         text_splitter = CharacterTextSplitter(
             separator="\n",
@@ -45,13 +50,11 @@ def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
 
         if not docs:
             raise ValueError("No documents found or empty data after splitting.")
-
         
-        print("check 1")
+        logging.info(f"Number of documents after splitting: {len(docs)}")
+
         hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=api_key)
-        print("check 2")
         vectorStore_hf = FAISS.from_documents(docs, hf_embeddings)
-        print("check 3")
         
         with open(store_path, "wb") as f:
             pickle.dump(vectorStore_hf, f)
