@@ -46,8 +46,12 @@ def setup_faiss_store(urls, api_key, store_path=STORE_PATH):
         if not docs:
             raise ValueError("No documents found or empty data after splitting.")
 
+        
+        print("check 1")
         hf_embeddings = HuggingFaceInferenceAPIEmbeddings(api_key=api_key)
+        print("check 2")
         vectorStore_hf = FAISS.from_documents(docs, hf_embeddings)
+        print("check 3")
         
         with open(store_path, "wb") as f:
             pickle.dump(vectorStore_hf, f)
