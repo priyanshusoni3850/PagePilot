@@ -1,9 +1,9 @@
 PagePilot
 <p align="center">
-  <img src="https://via.placeholder.com/200x200" alt="PagePilot Logo" width="200"/>
+  <img src="frontend\icon-128.png" alt="PagePilot Logo" width="200"/>
 </p>
 <p align="center">
-  <b>Chat with web pages and news articles directly from your Chrome browser</b>
+  <b>Chat with web pages and news articles directly from your Chrome browser.</b>
 </p>
 📖 Overview
 PagePilot is a Chrome extension that allows you to have interactive conversations with webpage content and news articles. Using advanced natural language processing, PagePilot can understand context, summarize content, answer questions, and provide insights based on the webpage you're viewing.
